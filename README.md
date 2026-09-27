@@ -4,7 +4,7 @@
 
 This repository is the **API**. The web app lives in [neqiwha-frontend](https://github.com/Aerovity/neqiwha-frontend).
 
-**Live app:** https://neqiwha-frontend-production.up.railway.app
+**Live app:** https://naqiwha.tech/
 
 ---
 
