@@ -1,7 +1,6 @@
 import { Hono } from 'hono';
 import type { AppEnv } from '../auth';
 import { env, samplePhotos } from '../env';
-import { PARTNER_NAME } from '../../shared/shop';
 import type { AppConfig } from '../../shared/types';
 
 export const configRoutes = new Hono<AppEnv>();
@@ -12,7 +11,6 @@ configRoutes.get('/config', c => {
     mapId: env.GOOGLE_MAPS_MAP_ID,
     devTools: env.DEV_TOOLS,
     samplePhotos,
-    partnerName: PARTNER_NAME,
   };
   return c.json(body);
 });

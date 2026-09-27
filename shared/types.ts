@@ -111,14 +111,19 @@ export interface CheckinResult {
 export interface LeaderboardEntry { position: number; user: PublicUser }
 export interface LeaderboardResponse { top: LeaderboardEntry[]; me: LeaderboardEntry | null }
 
-export interface ShopItem { id: string; partner: string; title: string; description: string; cost: number }
+export type ShopTone = 'sun' | 'coral' | 'mint' | 'grape' | 'sky' | 'night';
+export interface ShopItem {
+  id: string; partner: string; title: string; description: string; cost: number;
+  emoji: string;   // item art
+  tone: ShopTone;  // art tile colour
+}
 
 export interface Voucher {
   id: string;
   itemId: string;
   partner: string;
   title: string;
-  code: string;          // "HBK-7F3K9Q"
+  code: string;          // "NQW-7F3K9Q"
   cost: number;
   status: 'active' | 'used';
   createdAt: string;
@@ -129,7 +134,7 @@ export interface HistoryEntry extends RewardEntry {
   voucherTitle: string | null;
 }
 
-export interface AppConfig { mapsApiKey: string; mapId: string; devTools: boolean; samplePhotos: boolean; partnerName: string }
+export interface AppConfig { mapsApiKey: string; mapId: string; devTools: boolean; samplePhotos: boolean }
 
 export interface ApiErrorBody { error: { code: string; message: string } }
 

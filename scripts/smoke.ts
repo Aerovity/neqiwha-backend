@@ -549,23 +549,23 @@ async function main() {
 
   // ───────────── v5: shop, vouchers, history, leaderboard ─────────────
   let vouchers: Voucher[] = [];
-  await step('v5 shop items list has the 100-coin sticker', async () => {
+  await step('v5 shop items list has the 100-coin espresso', async () => {
     const items = await new Client('anon', '').ok<ShopItem[]>('GET', '/shop/items');
-    const sticker = items.find(i => i.id === 'hbk-sticker');
-    expect(sticker, `no hbk-sticker in ${short(items)}`);
-    eq(sticker.cost, 100, 'sticker cost');
+    const sticker = items.find(i => i.id === 'bahdja-espresso');
+    expect(sticker, `no bahdja-espresso in ${short(items)}`);
+    eq(sticker.cost, 100, 'espresso cost');
     await B.fails('POST', '/shop/purchase', { itemId: 'nope' }, 404, 'unknown_item');
   });
 
   await step('v5 B buys sticker (200 → 100) → again (→ 0) → third 409 not_enough_coins', async () => {
-    const p1 = await B.ok<{ voucher: Voucher; coins: number }>('POST', '/shop/purchase', { itemId: 'hbk-sticker' }, 201);
+    const p1 = await B.ok<{ voucher: Voucher; coins: number }>('POST', '/shop/purchase', { itemId: 'bahdja-espresso' }, 201);
     eq(p1.coins, 100, 'coins after first purchase');
     eq(p1.voucher.status, 'active', 'voucher.status');
-    expect(/^HBK-[A-Z2-9]{6}$/.test(p1.voucher.code), `voucher code ${p1.voucher.code}`);
-    const p2 = await B.ok<{ voucher: Voucher; coins: number }>('POST', '/shop/purchase', { itemId: 'hbk-sticker' }, 201);
+    expect(/^NQW-[A-Z2-9]{6}$/.test(p1.voucher.code), `voucher code ${p1.voucher.code}`);
+    const p2 = await B.ok<{ voucher: Voucher; coins: number }>('POST', '/shop/purchase', { itemId: 'bahdja-espresso' }, 201);
     eq(p2.coins, 0, 'coins after second purchase');
     expect(p1.voucher.code !== p2.voucher.code, 'voucher codes should differ');
-    await B.fails('POST', '/shop/purchase', { itemId: 'hbk-sticker' }, 409, 'not_enough_coins');
+    await B.fails('POST', '/shop/purchase', { itemId: 'bahdja-espresso' }, 409, 'not_enough_coins');
     eq((await B.me()).coins, 0, '/me coins');
   });
 
@@ -587,7 +587,7 @@ async function main() {
     const h = await B.ok<HistoryEntry[]>('GET', '/me/history');
     const purchases = h.filter(x => x.kind === 'purchase');
     eq(purchases.length, 2, 'purchase rows');
-    expect(purchases.every(p => p.coinsDelta === -100 && p.voucherTitle === 'Manga sticker'),
+    expect(purchases.every(p => p.coinsDelta === -100 && p.voucherTitle === 'Espresso on the house'),
       `purchase rows ${short(purchases)}`);
     const cleanup = h.find(x => x.kind === 'cleanup');
     expect(cleanup && cleanup.eventTitle === title && cleanup.xpDelta === 100, `cleanup row ${short(cleanup)}`);

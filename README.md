@@ -14,7 +14,7 @@ This repository is the **API**. The web app lives in [neqiwha-frontend](https://
 2. **Join.** Other users join the cleanup. A spot can also be a *solo cleanup*: private, anonymous by default, and not joinable.
 3. **Check in.** On site, each participant shows their personal QR ticket and the organizer scans it. The first check-in moves the spot to *Cleaning now*.
 4. **Finish.** The organizer takes the AFTER photo. Gemini compares it with the BEFORE photo, checking that it is the same place and that it is actually clean. If it passes, the spot is marked cleaned and every checked-in participant is paid XP and coins in a single transaction.
-5. **Rank up and spend.** XP drives five ranks, from *Mowatin* to *Khadra bi idn Allah*. Higher ranks multiply rewards and grant coin gifts. Coins buy vouchers from the partner shop, HB Kisa Manga.
+5. **Rank up and spend.** XP drives five ranks, from *Mowatin* to *Khadra bi idn Allah*. Higher ranks multiply rewards and grant coin gifts. Coins buy vouchers from partner shops (a made-up demo catalogue in [`shared/shop.ts`](shared/shop.ts)).
 
 | Rank | Name | Min XP | Multipliers | Level-up gift |
 |---|---|---|---|---|
