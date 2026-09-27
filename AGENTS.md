@@ -1,7 +1,6 @@
 # Naqiwha backend: rules for agents
 
-Full spec: `../naqiwha-technical-plan.md` (sections 7-9 are the backend). It is the source of truth for data, API and rules,
-with these project-specific changes:
+See `README.md` for the product, API overview, environment and scripts. Project-specific rules:
 
 - The API is its own Railway service (`neqiwha-backend`). The frontend service proxies `/api/*` to it over the private
   network, so the browser sees one origin. Never add CORS.
@@ -16,9 +15,9 @@ with these project-specific changes:
 - `npm run smoke -- http://localhost:8787`, `npm run check:env`, `npm run db:seed`, `npm run db:clean-test`
 
 ## Rules
-- NEVER `git push`. Commit locally only.
-- Test logins (DEV_TOOLS=true): any `@naqiwha.test` email, code `424242`. Test data must use those emails.
-- Keys in `.env` are throwaway: use them, never print or commit them.
+- Pushing to GitHub does not deploy: deploys are manual via `scripts/deploy.sh`.
+- Test logins (DEV_TOOLS=true, local only; production runs with DEV_TOOLS=false): any `@naqiwha.test` email, code `424242`. Test data must use those emails.
+- Never print or commit keys from `.env`.
 - Raw SQL with `postgres` (porsager), camelCase transform on results. `count(*)::int`. JSONB: `${sql.json(x)}` (postgres.js encodes jsonb itself; `JSON.stringify(x)::jsonb` stores a JSON string).
 - Gemini: `GEMINI_MODEL` then `GEMINI_FALLBACK_MODELS` (comma list); the key is free tier (20 req/day per model).
 - Error responses: `{ error: { code, message } }` via `fail()` from `server/http.ts`; messages are user-facing.
