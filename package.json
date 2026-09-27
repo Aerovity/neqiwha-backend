@@ -1,0 +1,33 @@
+{
+  "name": "naqiwha-backend",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "22.x"
+  },
+  "scripts": {
+    "dev": "tsx watch server/index.ts",
+    "start": "tsx server/index.ts",
+    "build": "echo 'no build step (tsx runtime)'",
+    "typecheck": "tsc --noEmit",
+    "check:env": "tsx server/scripts/check-env.ts",
+    "smoke": "tsx scripts/smoke.ts",
+    "db:seed": "tsx server/scripts/seed.ts",
+    "db:clean-test": "tsx server/scripts/clean-test-data.ts",
+    "admin:grant": "tsx server/scripts/grant-admin.ts"
+  },
+  "dependencies": {
+    "@google/genai": "^2.24.0",
+    "@hono/node-server": "^2.1.1",
+    "dotenv": "^18.0.4",
+    "hono": "^4.13.9",
+    "postgres": "^3.4.9",
+    "resend": "^6.30.0",
+    "tsx": "^4.23.15",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.3",
+    "typescript": "^7.0.2"
+  }
+}
