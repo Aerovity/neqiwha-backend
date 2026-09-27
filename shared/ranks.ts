@@ -12,19 +12,19 @@ export interface Rank {
 }
 
 export const RANKS: readonly Rank[] = [
-  { level: 0, name: 'Mowatin', tagline: 'Citizen. Every hero starts here.',
+  { level: 0, name: 'Bronze', tagline: 'Every hero starts here.',
     minXp: 0, xpMultiplier: 1, coinMultiplier: 1, levelUpGift: 0,
     perks: ['Create and join cleanups', 'Earn XP and coins'] },
-  { level: 1, name: 'Civilisé', tagline: 'You clean up after the city. Respect.',
+  { level: 1, name: 'Silver', tagline: 'You clean up after the city. Respect.',
     minXp: 100, xpMultiplier: 1, coinMultiplier: 1, levelUpGift: 100,
     perks: ['Leaf badge next to your name', '+100 coins gift'] },
-  { level: 2, name: 'Nqi w 3lih lklam', tagline: 'Spotless, and the whole neighbourhood talks about you.',
+  { level: 2, name: 'Gold', tagline: 'Spotless, and the whole neighbourhood talks about you.',
     minXp: 400, xpMultiplier: 1, coinMultiplier: 1, levelUpGift: 250,
     perks: ['Leafy frame around your avatar', '+250 coins gift'] },
-  { level: 3, name: 'Super Dz', tagline: 'Algeria’s cleanup superhero.',
+  { level: 3, name: 'Platinum', tagline: 'Algeria’s cleanup superhero.',
     minXp: 1200, xpMultiplier: 1, coinMultiplier: 2, levelUpGift: 500,
     perks: ['Winged avatar frame', 'Your name shines green', '×2 coins on every cleanup', '+500 coins gift'] },
-  { level: 4, name: 'Khadra bi idn Allah', tagline: 'Green, God willing. Legend status.',
+  { level: 4, name: 'Diamond', tagline: 'Legend status. The city is greener thanks to you.',
     minXp: 3000, xpMultiplier: 2, coinMultiplier: 2, levelUpGift: 1000,
     perks: ['Legendary animated frame', 'Green-gold gradient name', '×2 XP and ×2 coins', '+1000 coins gift'] },
 ];

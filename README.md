@@ -14,15 +14,15 @@ This repository is the **API**. The web app lives in [neqiwha-frontend](https://
 2. **Join.** Other users join the cleanup. A spot can also be a *solo cleanup*: private, anonymous by default, and not joinable.
 3. **Check in.** On site, each participant shows their personal QR ticket and the organizer scans it. The first check-in moves the spot to *Cleaning now*.
 4. **Finish.** The organizer takes the AFTER photo. Gemini compares it with the BEFORE photo, checking that it is the same place and that it is actually clean. If it passes, the spot is marked cleaned and every checked-in participant is paid XP and coins in a single transaction.
-5. **Rank up and spend.** XP drives five ranks, from *Mowatin* to *Khadra bi idn Allah*. Higher ranks multiply rewards and grant coin gifts. Coins buy vouchers from partner shops (a made-up demo catalogue in [`shared/shop.ts`](shared/shop.ts)).
+5. **Rank up and spend.** XP drives five ranks, from *Bronze* to *Diamond*. Higher ranks multiply rewards and grant coin gifts. Coins buy vouchers from partner shops (a made-up demo catalogue in [`shared/shop.ts`](shared/shop.ts)).
 
 | Rank | Name | Min XP | Multipliers | Level-up gift |
 |---|---|---|---|---|
-| 0 | Mowatin | 0 | — | — |
-| 1 | Civilisé | 100 | — | +100 coins |
-| 2 | Nqi w 3lih lklam | 400 | — | +250 coins |
-| 3 | Super Dz | 1200 | ×2 coins | +500 coins |
-| 4 | Khadra bi idn Allah | 3000 | ×2 XP, ×2 coins | +1000 coins |
+| 0 | Bronze | 0 | — | — |
+| 1 | Silver | 100 | — | +100 coins |
+| 2 | Gold | 400 | — | +250 coins |
+| 3 | Platinum | 1200 | ×2 coins | +500 coins |
+| 4 | Diamond | 3000 | ×2 XP, ×2 coins | +1000 coins |
 
 Each checked-in participant earns 100 XP and 100 coins per cleanup, and the organizer earns an extra 50 of each. These rules live in [`shared/ranks.ts`](shared/ranks.ts).
 
