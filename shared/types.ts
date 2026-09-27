@@ -129,11 +129,11 @@ export interface HistoryEntry extends RewardEntry {
   voucherTitle: string | null;
 }
 
-export interface AppConfig { mapsApiKey: string; mapId: string; devTools: boolean; partnerName: string }
+export interface AppConfig { mapsApiKey: string; mapId: string; devTools: boolean; samplePhotos: boolean; partnerName: string }
 
 export interface ApiErrorBody { error: { code: string; message: string } }
 
-/** Names accepted by GET /api/dev/sample/:name (DEV_TOOLS only). */
+/** Names accepted by GET /api/dev/sample/:name (DEV_TOOLS or DEMO_SAMPLES). */
 export const SAMPLE_PHOTOS = ['before1', 'after1', 'before2', 'after2', 'before3', 'after3', 'before4', 'after4'] as const;
 export type SamplePhoto = (typeof SAMPLE_PHOTOS)[number];
 

@@ -81,7 +81,7 @@ All routes are under `/api`. Errors always have the shape `{ "error": { "code": 
 | Leaderboard | `GET /leaderboard` |
 | Shop | `GET /shop/items`, `POST /shop/purchase`, `GET /vouchers`, `POST /vouchers/:id/use` |
 | Admin | `GET /admin/stats`, `GET /admin/events`, `POST /admin/events/:id/close`, `POST /admin/events/:id/reopen`, `DELETE /admin/events/:id`, `GET /admin/users`, `POST /admin/users/:id/admin`, `GET /admin/log` |
-| Dev (DEV_TOOLS only) | `GET /dev/sample/:name` |
+| Dev (DEV_TOOLS or DEMO_SAMPLES) | `GET /dev/sample/:name` |
 
 **AI photo gate.** Photos are analysed server-side and the result is stored on the image. Publishing a spot with an unchecked photo returns `400 photo_not_checked`, and a rejected photo returns `422 photo_rejected`. Any AI verdict sent by the client is ignored.
 
@@ -120,6 +120,7 @@ To run the whole app locally, start the [frontend](https://github.com/Aerovity/n
 | `GOOGLE_MAPS_API_KEY` | yes | Maps JavaScript API key, sent to the client via `/config` |
 | `GOOGLE_MAPS_MAP_ID` | no | Map ID for styled/advanced markers (default `DEMO_MAP_ID`) |
 | `DEV_TOOLS` | no | `true` enables test logins, sample photos and the `/kit` screen. **Keep it `false` in real production.** |
+| `DEMO_SAMPLES` | no | `true` shows the sample-photo buttons in the create and finish flows without enabling test logins (for demos). Samples still go through the AI check. |
 | `AI_FAIL_OPEN` | no | `true` lets photos through when Gemini is unavailable (default `false`) |
 | `API_PORT` | no | Local dev port (default `8787`). In production `PORT` is used (default `8080`). |
 | `TEST_REAL_EMAIL` | no | Address used to test real email delivery |

@@ -15,6 +15,7 @@ const Env = z.object({
   GOOGLE_MAPS_API_KEY: z.string().min(1),
   GOOGLE_MAPS_MAP_ID: z.string().default('DEMO_MAP_ID'),
   DEV_TOOLS: z.string().default('false').transform(v => v === 'true'),
+  DEMO_SAMPLES: z.string().default('false').transform(v => v === 'true'),
   AI_FAIL_OPEN: z.string().default('false').transform(v => v === 'true'),
   BUILD_SHA: z.string().optional(),
   RAILWAY_GIT_COMMIT_SHA: z.string().optional(),
@@ -23,4 +24,5 @@ const Env = z.object({
 export const env = Env.parse(process.env);
 export const isProd = env.NODE_ENV === 'production';
 export const listenPort = isProd ? (env.PORT ?? 8080) : (env.API_PORT ?? 8787);
+export const samplePhotos = env.DEV_TOOLS || env.DEMO_SAMPLES;
 export const buildSha = env.BUILD_SHA ?? env.RAILWAY_GIT_COMMIT_SHA ?? 'local';
