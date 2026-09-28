@@ -465,6 +465,16 @@ async function main() {
     chatExpiredSpotId = s.id;
   });
 
+  await step('v2 chat: cleanup job deletes expired chats only', async () => {
+    const { deleteExpiredMessages } = await import('../server/services/chat-cleanup');
+    const removed = await deleteExpiredMessages();
+    expect(removed >= 2, `expected ≥ 2 expired rows removed, got ${removed}`);
+    const [left] = await sql`SELECT count(*)::int AS n FROM event_messages WHERE event_id = ${chatExpiredSpotId}`;
+    eq(left.n, 0, 'expired chat rows');
+    const [live] = await sql`SELECT count(*)::int AS n FROM event_messages WHERE event_id = ${spot.id}`;
+    expect(live.n > 0, 'live chat was deleted');
+  });
+
   await step('v2 organizer leave → 409 organizer_cannot_leave; unknown spot → 404', async () => {
     await A.fails('DELETE', `/events/${spot.id}/join`, undefined, 409, 'organizer_cannot_leave');
     await B.fails('POST', `/events/${crypto.randomUUID()}/join`, undefined, 404, 'not_found');
