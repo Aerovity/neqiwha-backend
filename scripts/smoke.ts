@@ -407,6 +407,45 @@ async function main() {
     await sql`UPDATE users SET is_admin = false WHERE id = ${meC.id}`;
   });
 
+  await step('v2 chat: since returns only changes, including deletions', async () => {
+    const first = await A.ok<ChatPage>('GET', msgs(spot.id));
+    await new Promise(r => setTimeout(r, 6000)); // let the 5 s overlap pass
+    const settle = await A.ok<ChatPage>('GET', `${msgs(spot.id)}?since=${encodeURIComponent(first.cursor)}`);
+    expect(settle.messages.every(m => first.messages.some(f => f.id === m.id)), 'settle poll returned only overlap rows');
+    const quiet = await A.ok<ChatPage>('GET', `${msgs(spot.id)}?since=${encodeURIComponent(settle.cursor)}`);
+    eq(quiet.messages.length, 0, 'nothing changed → empty');
+    const bMsg = first.messages.find(m => !m.mine && !m.deleted)!;
+    const del = await B.ok<ChatMessage>('DELETE', `${msgs(spot.id)}/${bMsg.id}`);
+    eq(del.deleted, 'author', 'deleted by author'); eq(del.body, '', 'body wiped'); eq(del.canDelete, false, 'canDelete after delete');
+    const next = await A.ok<ChatPage>('GET', `${msgs(spot.id)}?since=${encodeURIComponent(quiet.cursor)}`);
+    const seen = next.messages.find(m => m.id === bMsg.id);
+    expect(seen && seen.deleted === 'author' && seen.body === '', 'deletion visible to A via since');
+    const [row] = await sql`SELECT body FROM event_messages WHERE id = ${bMsg.id}`;
+    eq(row.body, '', 'body wiped in DB');
+    await B.ok<ChatMessage>('DELETE', `${msgs(spot.id)}/${bMsg.id}`); // idempotent
+    await A.ok('GET', `${msgs(spot.id)}?since=garbage`); // invalid since is ignored
+  });
+
+  await step('v2 chat: delete permissions; admin delete is logged', async () => {
+    await D.ok('POST', `/events/${spot.id}/join`);
+    const d = await D.ok<ChatMessage>('POST', msgs(spot.id), { body: 'delete me, mod' }, 201);
+    await D.ok('DELETE', `/events/${spot.id}/join`);
+    await D.fails('DELETE', `${msgs(spot.id)}/${d.id}`, undefined, 403, 'not_participant');
+    await C.fails('DELETE', `${msgs(spot.id)}/${d.id}`, undefined, 403, 'not_participant');
+    await sql`UPDATE users SET is_admin = false WHERE id = ${meA.id}`;
+    await A.fails('DELETE', `${msgs(spot.id)}/${d.id}`, undefined, 403, 'not_author');
+    await sql`UPDATE users SET is_admin = true WHERE id = ${meA.id}`;
+    const asA = await A.ok<ChatPage>('GET', msgs(spot.id));
+    eq(asA.messages.find(m => m.id === d.id)?.canDelete, true, 'admin canDelete');
+    const mod = await A.ok<ChatMessage>('DELETE', `${msgs(spot.id)}/${d.id}`);
+    eq(mod.deleted, 'moderator', 'deleted by moderator');
+    const log = await A.ok<AdminAction[]>('GET', '/admin/log');
+    const entry = log.find(l => l.action === 'delete_message' && l.targetId === spot.id);
+    expect(entry, 'delete_message not in audit log');
+    expect(!JSON.stringify(entry).includes('delete me, mod'), 'message text leaked into audit log');
+    await A.fails('DELETE', `${msgs(spot.id)}/00000000-0000-0000-0000-000000000000`, undefined, 404, 'message_not_found');
+  });
+
   await step('v2 chat: closed spot is read-only; reopen restores posting; expired → 410', async () => {
     const photo = await A.upload('before3');
     await approve(photo.id);

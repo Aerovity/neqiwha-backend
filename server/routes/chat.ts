@@ -4,6 +4,7 @@ import { requireUser, type AppEnv, type UserRow } from '../auth';
 import { sql } from '../db';
 import { fail, isUuid, readJson } from '../http';
 import { toPublicUser } from '../dto';
+import { logAction } from './admin';
 import type { EventStatus } from '../../shared/types';
 import type { ChatMessage, ChatPage, ChatState } from '../../shared/chat';
 
@@ -16,9 +17,13 @@ const NOT_PARTICIPANT = 'Join this spot to see its chat.';
 const CHAT_CLOSED = 'This chat has closed.';
 const INVALID_MESSAGE = 'Write a message (1–500 characters).';
 const SLOW_DOWN = 'Slow down a little — try again in a few seconds.';
+const NOT_AUTHOR = 'You can only delete your own messages.';
+const MESSAGE_NOT_FOUND = "This message doesn't exist anymore.";
 const DAY = 24 * 60 * 60 * 1000;
 const RECENT_LIMIT = 200;
 const RATE_LIMIT = 10; // messages per user per event per 30 s
+// Postgres timestamptz text, as produced by nextCursor(); anything else is treated as a first load.
+const CURSOR_RE = /^\d{4}-\d{2}-\d{2}[ T][\d:.]+(Z|[+-]\d{2}(:?\d{2})?)?$/;
 
 const PostBody = z.object({ body: z.string().trim().min(1).max(500) });
 
@@ -101,8 +106,9 @@ async function nextCursor(): Promise<string> {
 chatRoutes.get('/events/:id/messages', async c => {
   const me = requireUser(c);
   const ctx = await loadChat(c.req.param('id'), me);
+  const since = c.req.query('since');
   const page: ChatPage = {
-    messages: await selectMessages(ctx, me.id, 'recent'),
+    messages: await selectMessages(ctx, me.id, since && CURSOR_RE.test(since) ? { since } : 'recent'),
     cursor: await nextCursor(),
     state: ctx.state,
     canPost: ctx.isParticipant && ctx.state !== 'closed',
@@ -127,4 +133,28 @@ chatRoutes.post('/events/:id/messages', async c => {
     RETURNING id`;
   const [msg] = await selectMessages(ctx, me.id, { id: row.id });
   return c.json(msg, 201);
+});
+
+chatRoutes.delete('/events/:id/messages/:messageId', async c => {
+  const me = requireUser(c);
+  const ctx = await loadChat(c.req.param('id'), me);
+  const messageId = c.req.param('messageId');
+  if (!isUuid(messageId)) fail(404, 'message_not_found', MESSAGE_NOT_FOUND);
+  const [msg] = await sql<{ userId: string | null; deletedAt: Date | null }[]>`
+    SELECT user_id, deleted_at FROM event_messages WHERE id = ${messageId} AND event_id = ${ctx.eventId}`;
+  if (!msg) fail(404, 'message_not_found', MESSAGE_NOT_FOUND);
+  if (!msg.deletedAt) {
+    const isAuthor = msg.userId === me.id;
+    if (!ctx.isAdmin) {
+      if (!isAuthor) fail(403, 'not_author', NOT_AUTHOR);
+      if (ctx.state === 'closed') fail(409, 'event_closed', CLOSED);
+    }
+    await sql`
+      UPDATE event_messages
+         SET body = '', deleted_at = now(), updated_at = clock_timestamp(), deleted_by_admin = ${!isAuthor}
+       WHERE id = ${messageId}`;
+    if (!isAuthor) await logAction(me.id, 'delete_message', 'event', ctx.eventId, { title: ctx.title });
+  }
+  const [deleted] = await selectMessages(ctx, me.id, { id: messageId });
+  return c.json(deleted);
 });

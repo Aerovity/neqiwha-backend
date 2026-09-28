@@ -14,7 +14,7 @@ export const adminRoutes = new Hono<AppEnv>();
 const iso = (d: Date | null) => (d ? d.toISOString() : null);
 const jsonb = (v: object) => sql.json(v as Parameters<typeof sql.json>[0]);
 
-async function logAction(
+export async function logAction(
   adminId: string, action: AdminAction['action'], targetType: AdminAction['targetType'], targetId: string,
   detail: NonNullable<AdminAction['detail']>,
 ) {
