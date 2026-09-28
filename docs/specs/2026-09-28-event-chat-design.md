@@ -117,10 +117,10 @@ tables above, and returns `{ state, closesAt, isParticipant, isAdmin, organizerI
 
 **`GET /events/:id/messages?since=<cursor>`** returns a `ChatPage`.
 - Without `since`: the most recent 200 messages (including deleted placeholders), oldest first.
-- With `since`: messages with `updated_at > since - 5 seconds`, oldest first. The 5-second overlap covers rows committed
-  slightly out of order. Clients merge by `id`, so duplicates don't matter.
-- `cursor` = the greatest `updated_at` among the returned rows, as Postgres text (microsecond precision), or the incoming
-  `since` if nothing changed. With no rows at all, it's `now()` as text.
+- With `since`: messages with `updated_at > since`, oldest first.
+- `cursor` = the server's clock minus 5 seconds, as Postgres text (microsecond precision). The 5-second overlap covers rows
+  committed slightly out of order. Recent changes are re-sent for a poll or two, and clients merge by `id`, so duplicates don't
+  matter. A quiet chat returns an empty list.
 - An invalid `since` is ignored (treated as a first load).
 
 **`POST /events/:id/messages`**, body `{ body: string }`, returns 201 `ChatMessage`.
