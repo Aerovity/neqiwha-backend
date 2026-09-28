@@ -173,7 +173,7 @@ export interface AdminUser extends PublicUser {
 export interface AdminAction {
   id: string;
   admin: { id: string; email: string; displayName: string } | null;
-  action: 'close_event' | 'reopen_event' | 'delete_event' | 'grant_admin' | 'revoke_admin';
+  action: 'close_event' | 'reopen_event' | 'delete_event' | 'grant_admin' | 'revoke_admin' | 'delete_message';
   targetType: 'event' | 'user';
   targetId: string | null;
   detail: { title?: string; email?: string } | null;

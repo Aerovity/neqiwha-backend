@@ -13,6 +13,7 @@ import { leaderboardRoutes } from './leaderboard';
 import { shopRoutes } from './shop';
 import { devRoutes } from './dev';
 import { adminRoutes } from './admin';
+import { chatRoutes } from './chat';
 
 export const api = new Hono<AppEnv>();
 api.use('*', bodyLimit({
@@ -34,6 +35,7 @@ api.route('/', meRoutes);
 api.route('/', imageRoutes);
 api.route('/', aiRoutes);
 api.route('/', eventRoutes);
+api.route('/', chatRoutes);
 api.route('/', leaderboardRoutes);
 api.route('/', shopRoutes);
 api.route('/', devRoutes);

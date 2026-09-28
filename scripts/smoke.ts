@@ -10,6 +10,7 @@ import type {
   AdminAction, AdminEvent, AdminStats, CheckinResult, CompleteResult, EventDetail, EventPin, HistoryEntry, LeaderboardResponse, Me, PhotoAnalysis,
   ShopItem, Voucher,
 } from '../shared/types';
+import type { ChatMessage, ChatPage } from '../shared/chat';
 import { sql } from '../server/db';
 
 const BASE = (process.argv[2] ?? 'http://localhost:8787').replace(/\/+$/, '');
@@ -256,6 +257,9 @@ async function main() {
     beforeImageId: '',
   };
   let spot!: EventDetail;
+  let soloSpot!: EventDetail;
+  let chatExpiredSpotId = '';
+  const msgs = (id: string) => `/events/${id}/messages`;
   await step('v2 create spot validation (bad time, short title, missing photo) → 400', async () => {
     spotBody.beforeImageId = before1.id;
     const tooLate = new Date(Date.now() + 40 * 24 * 60 * 60 * 1000).toISOString();
@@ -294,6 +298,7 @@ async function main() {
     const photo = await A.upload('before3');
     await approve(photo.id);
     const solo = await A.ok<EventDetail>('POST', '/events', { ...spotBody, title: `${title} solo`, startsAt: new Date().toISOString(), beforeImageId: photo.id, isPublic: false }, 201);
+    soloSpot = solo;
     eq(solo.isPublic, false, 'solo isPublic');
     eq(solo.showName, false, 'solo showName defaults to false');
     await B.fails('POST', `/events/${solo.id}/join`, undefined, 409, 'solo_cleanup');
@@ -361,6 +366,64 @@ async function main() {
     const back = await B.ok<EventDetail>('POST', `/events/${spot.id}/join`);
     eq(back.participantCount, 2, 'participantCount after re-join');
     eq(back.viewer?.hasJoined, true, 'viewer.hasJoined after re-join');
+  });
+
+  // ───────────── chat ─────────────
+  await step('v2 chat: participants post + read; outsiders 403; logged out 401', async () => {
+    const a1 = await A.ok<ChatMessage>('POST', msgs(spot.id), { body: '  Yallah, 10am at the gate  ' }, 201);
+    eq(a1.body, 'Yallah, 10am at the gate', 'body is trimmed');
+    eq(a1.mine, true, 'a1.mine'); eq(a1.isOrganizer, true, 'a1.isOrganizer'); eq(a1.deleted, null, 'a1.deleted');
+    await B.ok<ChatMessage>('POST', msgs(spot.id), { body: 'مرحبا 👋' }, 201);
+    const page = await B.ok<ChatPage>('GET', msgs(spot.id));
+    eq(page.messages.length, 2, 'B sees 2 messages');
+    eq(page.messages[0].id, a1.id, 'oldest first');
+    eq(page.messages[0].mine, false, 'A message not mine for B');
+    eq(page.state, 'open', 'state'); eq(page.canPost, true, 'canPost'); eq(page.closesAt, null, 'closesAt');
+    expect(typeof page.cursor === 'string' && page.cursor.length > 0, 'cursor');
+    await C.fails('GET', msgs(spot.id), undefined, 403, 'not_participant');
+    await C.fails('POST', msgs(spot.id), { body: 'hi' }, 403, 'not_participant');
+    await new Client('anon', '').fails('GET', msgs(spot.id), undefined, 401, 'unauthorized');
+  });
+
+  await step('v2 chat: validation 400 and rate limit 429', async () => {
+    await B.fails('POST', msgs(spot.id), { body: '   ' }, 400, 'invalid_message');
+    await B.fails('POST', msgs(spot.id), { body: 'x'.repeat(501) }, 400, 'invalid_message');
+    await B.ok('POST', msgs(spot.id), { body: 'x'.repeat(500) }, 201);
+    // B has 2 messages in the last 30 s; 8 more reach the limit of 10.
+    for (let i = 0; i < 8; i++) await B.ok('POST', msgs(spot.id), { body: `spam ${i}` }, 201);
+    await B.fails('POST', msgs(spot.id), { body: 'one too many' }, 429, 'slow_down');
+  });
+
+  await step('v2 chat: solo 409; left participant 403; admin non-participant reads but cannot post', async () => {
+    await A.fails('GET', msgs(soloSpot.id), undefined, 409, 'solo_cleanup');
+    await D.ok('POST', `/events/${spot.id}/join`);
+    await D.ok('GET', msgs(spot.id));
+    await D.ok('DELETE', `/events/${spot.id}/join`);
+    await D.fails('GET', msgs(spot.id), undefined, 403, 'not_participant');
+    await sql`UPDATE users SET is_admin = true WHERE id = ${meC.id}`;
+    const asAdmin = await C.ok<ChatPage>('GET', msgs(spot.id));
+    eq(asAdmin.canPost, false, 'admin non-participant canPost');
+    await C.fails('POST', msgs(spot.id), { body: 'hi' }, 403, 'not_participant');
+    await sql`UPDATE users SET is_admin = false WHERE id = ${meC.id}`;
+  });
+
+  await step('v2 chat: closed spot is read-only; reopen restores posting; expired → 410', async () => {
+    const photo = await A.upload('before3');
+    await approve(photo.id);
+    const s = await A.ok<EventDetail>('POST', '/events', { ...spotBody, title: `${title} chat`, beforeImageId: photo.id }, 201);
+    await B.ok('POST', `/events/${s.id}/join`);
+    await B.ok('POST', msgs(s.id), { body: 'before close' }, 201);
+    await A.ok('POST', `/admin/events/${s.id}/close`);
+    const closed = await B.ok<ChatPage>('GET', msgs(s.id));
+    eq(closed.state, 'closed', 'state closed'); eq(closed.canPost, false, 'canPost closed');
+    expect(closed.closesAt && Date.parse(closed.closesAt) > Date.now() + 23 * 3600e3, 'closesAt ≈ +24 h');
+    await B.fails('POST', msgs(s.id), { body: 'x' }, 409, 'event_closed');
+    await A.ok('POST', `/admin/events/${s.id}/reopen`);
+    await B.ok('POST', msgs(s.id), { body: 'after reopen' }, 201);
+    await sql`UPDATE events SET status = 'cleaned', cleaned_at = now() - interval '25 hours' WHERE id = ${s.id}`;
+    await B.fails('GET', msgs(s.id), undefined, 410, 'chat_closed');
+    await B.fails('POST', msgs(s.id), { body: 'x' }, 410, 'chat_closed');
+    chatExpiredSpotId = s.id;
   });
 
   await step('v2 organizer leave → 409 organizer_cannot_leave; unknown spot → 404', async () => {
