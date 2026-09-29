@@ -110,3 +110,16 @@ CREATE TABLE IF NOT EXISTS admin_actions (
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS admin_actions_created_idx ON admin_actions (created_at DESC);
+
+-- Event chat: participants of public spots; deleted 24 h after the spot is cleaned or closed (services/chat-cleanup.ts).
+CREATE TABLE IF NOT EXISTS event_messages (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  event_id          UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  user_id           UUID REFERENCES users(id) ON DELETE SET NULL,
+  body              TEXT NOT NULL,          -- '' once deleted
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
+  deleted_at        TIMESTAMPTZ,
+  deleted_by_admin  BOOLEAN NOT NULL DEFAULT false
+);
+CREATE INDEX IF NOT EXISTS event_messages_event_idx ON event_messages (event_id, updated_at);

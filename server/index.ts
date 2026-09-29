@@ -3,8 +3,10 @@ import { Hono } from 'hono';
 import { isProd, listenPort } from './env';
 import { initSchema } from './db';
 import { api } from './routes';
+import { startChatCleanup } from './services/chat-cleanup';
 
 await initSchema();
+startChatCleanup();
 
 const app = new Hono();
 if (!isProd) {
