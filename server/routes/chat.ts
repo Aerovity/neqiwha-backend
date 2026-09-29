@@ -22,8 +22,9 @@ const MESSAGE_NOT_FOUND = "This message doesn't exist anymore.";
 const DAY = 24 * 60 * 60 * 1000;
 const RECENT_LIMIT = 200;
 const RATE_LIMIT = 10; // messages per user per event per 30 s
-// Postgres timestamptz text, as produced by nextCursor(); anything else is treated as a first load.
-const CURSOR_RE = /^\d{4}-\d{2}-\d{2}[ T][\d:.]+(Z|[+-]\d{2}(:?\d{2})?)?$/;
+// ISO UTC with microseconds, as produced by nextCursor(); anything else is treated as a first load.
+const CURSOR_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$/;
+const isCursor = (s: string | undefined): s is string => !!s && CURSOR_RE.test(s) && !Number.isNaN(Date.parse(s));
 
 const PostBody = z.object({ body: z.string().trim().min(1).max(500) });
 
@@ -97,9 +98,13 @@ async function selectMessages(
   });
 }
 
-/** The 5 s overlap lives in the cursor, so a quiet chat returns nothing and re-sent rows stop after a poll or two. */
+/**
+ * The 5 s overlap lives in the cursor, so a quiet chat returns nothing and re-sent rows stop after a poll or two.
+ * Formatted explicitly (ISO, UTC, microseconds) so it doesn't depend on the session's DateStyle or TimeZone.
+ */
 async function nextCursor(): Promise<string> {
-  const [row] = await sql<{ c: string }[]>`SELECT (clock_timestamp() - interval '5 seconds')::text AS c`;
+  const [row] = await sql<{ c: string }[]>`
+    SELECT to_char((clock_timestamp() - interval '5 seconds') AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS c`;
   return row.c;
 }
 
@@ -108,7 +113,7 @@ chatRoutes.get('/events/:id/messages', async c => {
   const ctx = await loadChat(c.req.param('id'), me);
   const since = c.req.query('since');
   const page: ChatPage = {
-    messages: await selectMessages(ctx, me.id, since && CURSOR_RE.test(since) ? { since } : 'recent'),
+    messages: await selectMessages(ctx, me.id, isCursor(since) ? { since } : 'recent'),
     cursor: await nextCursor(),
     state: ctx.state,
     canPost: ctx.isParticipant && ctx.state !== 'closed',
@@ -124,14 +129,21 @@ chatRoutes.post('/events/:id/messages', async c => {
   if (ctx.state === 'closed') fail(409, 'event_closed', CLOSED);
   const parsed = PostBody.safeParse(await readJson(c));
   if (!parsed.success) fail(400, 'invalid_message', INVALID_MESSAGE);
-  const [recent] = await sql<{ n: number }[]>`
-    SELECT count(*)::int AS n FROM event_messages
-     WHERE event_id = ${ctx.eventId} AND user_id = ${me.id} AND created_at > now() - interval '30 seconds'`;
-  if (recent.n >= RATE_LIMIT) fail(429, 'slow_down', SLOW_DOWN);
-  const [row] = await sql<{ id: string }[]>`
-    INSERT INTO event_messages (event_id, user_id, body) VALUES (${ctx.eventId}, ${me.id}, ${parsed.data.body})
-    RETURNING id`;
-  const [msg] = await selectMessages(ctx, me.id, { id: row.id });
+  // Count and insert under a per-user, per-event lock so parallel requests can't slip past the limit.
+  const id = await sql.begin(async tx => {
+    await tx`SELECT pg_advisory_xact_lock(hashtext(${`chat:${ctx.eventId}:${me.id}`}))`;
+    const [recent] = await tx<{ n: number }[]>`
+      SELECT count(*)::int AS n FROM event_messages
+       WHERE event_id = ${ctx.eventId} AND user_id = ${me.id} AND created_at > clock_timestamp() - interval '30 seconds'`;
+    if (recent.n >= RATE_LIMIT) return null;
+    const [row] = await tx<{ id: string }[]>`
+      INSERT INTO event_messages (event_id, user_id, body, created_at)
+      VALUES (${ctx.eventId}, ${me.id}, ${parsed.data.body}, clock_timestamp())
+      RETURNING id`;
+    return row.id;
+  });
+  if (!id) fail(429, 'slow_down', SLOW_DOWN);
+  const [msg] = await selectMessages(ctx, me.id, { id });
   return c.json(msg, 201);
 });
 
@@ -149,11 +161,13 @@ chatRoutes.delete('/events/:id/messages/:messageId', async c => {
       if (!isAuthor) fail(403, 'not_author', NOT_AUTHOR);
       if (ctx.state === 'closed') fail(409, 'event_closed', CLOSED);
     }
-    await sql`
+    // Only the request that actually flips the row logs it, so parallel deletes leave one audit entry.
+    const changed = await sql`
       UPDATE event_messages
          SET body = '', deleted_at = now(), updated_at = clock_timestamp(), deleted_by_admin = ${!isAuthor}
-       WHERE id = ${messageId}`;
-    if (!isAuthor) await logAction(me.id, 'delete_message', 'event', ctx.eventId, { title: ctx.title });
+       WHERE id = ${messageId} AND deleted_at IS NULL
+      RETURNING id`;
+    if (changed.length && !isAuthor) await logAction(me.id, 'delete_message', 'event', ctx.eventId, { title: ctx.title });
   }
   const [deleted] = await selectMessages(ctx, me.id, { id: messageId });
   return c.json(deleted);

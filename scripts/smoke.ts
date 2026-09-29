@@ -259,6 +259,7 @@ async function main() {
   let spot!: EventDetail;
   let soloSpot!: EventDetail;
   let chatExpiredSpotId = '';
+  let otherExpiredSpotId = '';
   const msgs = (id: string) => `/events/${id}/messages`;
   await step('v2 create spot validation (bad time, short title, missing photo) → 400', async () => {
     spotBody.beforeImageId = before1.id;
@@ -446,6 +447,31 @@ async function main() {
     await A.fails('DELETE', `${msgs(spot.id)}/00000000-0000-0000-0000-000000000000`, undefined, 404, 'message_not_found');
   });
 
+  await step('v2 chat: cursor is ISO UTC; an impossible since date is ignored', async () => {
+    const page = await A.ok<ChatPage>('GET', msgs(spot.id));
+    expect(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$/.test(page.cursor), `cursor not ISO UTC: ${page.cursor}`);
+    const bogus = await A.ok<ChatPage>('GET', `${msgs(spot.id)}?since=${encodeURIComponent('2026-99-99T99:99:99.000000Z')}`);
+    eq(bogus.messages.length, page.messages.length, 'impossible since → first load');
+  });
+
+  await step('v2 chat: rate limit and admin log hold under concurrent requests', async () => {
+    const photo = await A.upload('before3');
+    await approve(photo.id);
+    const s = await A.ok<EventDetail>('POST', '/events', { ...spotBody, title: `${title} race`, beforeImageId: photo.id }, 201);
+    await D.ok('POST', `/events/${s.id}/join`);
+    const burst = await Promise.all(Array.from({ length: 15 }, (_, i) => D.req('POST', msgs(s.id), { body: `burst ${i}` })));
+    eq(burst.filter(r => r.status === 201).length, 10, 'concurrent posts accepted');
+    eq(burst.filter(r => r.status === 429).length, 5, 'concurrent posts refused');
+    const target = burst.find(r => r.status === 201)!.body as ChatMessage;
+    const dels = await Promise.all(Array.from({ length: 5 }, () => A.req('DELETE', `${msgs(s.id)}/${target.id}`)));
+    expect(dels.every(r => r.status === 200), 'concurrent admin deletes all answer 200');
+    const [log] = await sql`
+      SELECT count(*)::int AS n FROM admin_actions WHERE action = 'delete_message' AND target_id = ${s.id}`;
+    eq(log.n, 1, 'one audit entry for one deleted message');
+    await sql`UPDATE events SET status = 'cleaned', cleaned_at = now() - interval '25 hours' WHERE id = ${s.id}`;
+    otherExpiredSpotId = s.id;
+  });
+
   await step('v2 chat: closed spot is read-only; reopen restores posting; expired → 410', async () => {
     const photo = await A.upload('before3');
     await approve(photo.id);
@@ -467,10 +493,14 @@ async function main() {
 
   await step('v2 chat: cleanup job deletes expired chats only', async () => {
     const { deleteExpiredMessages } = await import('../server/services/chat-cleanup');
-    const removed = await deleteExpiredMessages();
-    expect(removed >= 2, `expected ≥ 2 expired rows removed, got ${removed}`);
+    // Scoped to this run's spots, so the suite never deletes anyone else's data.
+    const removed = await deleteExpiredMessages([chatExpiredSpotId]);
+    eq(removed, 2, 'expired rows removed from the targeted spot');
     const [left] = await sql`SELECT count(*)::int AS n FROM event_messages WHERE event_id = ${chatExpiredSpotId}`;
     eq(left.n, 0, 'expired chat rows');
+    const [other] = await sql`SELECT count(*)::int AS n FROM event_messages WHERE event_id = ${otherExpiredSpotId}`;
+    expect(other.n > 0, 'cleanup scoped to one spot touched another');
+    await deleteExpiredMessages([otherExpiredSpotId]);
     const [live] = await sql`SELECT count(*)::int AS n FROM event_messages WHERE event_id = ${spot.id}`;
     expect(live.n > 0, 'live chat was deleted');
   });
